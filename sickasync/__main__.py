@@ -7,8 +7,8 @@ import os
 import sys
 import json
 
-HOST = os.getenv('HOST', '0.0.0.0')
-PORT = int(os.getenv('PORT', 8080))
+HOST = os.getenv('SERVER_HOST', '0.0.0.0')
+PORT = int(os.getenv('SERVER_PORT', 8080))
 
 #  asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
@@ -60,43 +60,52 @@ def server_main():
     web.run_app(app, host=HOST, port=PORT)
 
 
-#  HOST = os.getenv('HOST', '0.0.0.0')
-#  PORT = int(os.getenv('PORT', 8080))
+def authorized_url(url, sid):
+    return '%s%s%s' % (url, '&SID=', sid)
 
-#  URL = 'wss://api.bitfinex.com/ws/2'
 
-import time
+async def send_ping(from_ws):
+    while True:
+        await asyncio.sleep(25)
+        print('send_ping')
+        await from_ws.send_str('2probe')
 
-async def client():
+
+async def client(loop):
     last_time = time.time()
     isSubscribed = False
+    sid = 'avkiid7sig14s3j7tloarn4f23'
+    url = authorized_url(HOST, sid)
     session = aiohttp.ClientSession()
-    async with session.ws_connect(HOST) as ws:
+    async with session.ws_connect(url) as ws:
+        asyncio.gather(send_ping(ws))
         async for msg in ws:
-            if not isSubscribed:
+            print(msg.data)
+            #  if not isSubscribed:
                 #  if msg.type in (aiohttp.WSMsgType.OPENED,):
-                await ws.send_str(json.dumps({
-                  "event": "subscribe",
-                  "channel": "book",
-                  "symbol": "tBTCUSD",
-                  "prec": "P0",
-                  "freq": "F1",
-                  "len": 1
-                }))
-                isSubscribed = True
-            else:
-                new_time = time.time()
-                print(new_time - last_time)
-                last_time = new_time
+                #  await ws.send_str(json.dumps({
+                  #  "event": "subscribe",
+                  #  "channel": "book",
+                  #  "symbol": "tBTCUSD",
+                  #  "prec": "P0",
+                  #  "freq": "F1",
+                  #  "len": 1
+                #  }))
+                #  isSubscribed = True
+            #  else:
+                #  new_time = time.time()
+                #  print(new_time - last_time)
+                #  last_time = new_time
                 #  print(msg.data)
             if msg.type in (aiohttp.WSMsgType.CLOSED,
                             aiohttp.WSMsgType.ERROR):
-                break
+                print("SOMETHING GOES WRONG: %s" % 'closed' if aiohttp.WSMsgType.CLOSED else 'error')
+                return
 
 
 def client_main():
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(client())
+    loop.run_until_complete(client(loop))
 
 
 def main():
@@ -105,6 +114,8 @@ def main():
         client_main()
     elif mode == 'http_server':
         server_main()
+    else:
+        raise Exception('unexpected mode: %s' % mode)
 
 
 if __name__ == "__main__":
